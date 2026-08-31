@@ -136,12 +136,41 @@ build_fakefsify() {
     # Configure for native build (not cross-compile)
     if [ ! -f "$BUILD_DIR/build.ninja" ]; then
         log_info "Configuring native meson build..."
-        meson setup "$BUILD_DIR" \
+        if ! meson setup "$BUILD_DIR" \
             --buildtype=release \
             -Dlog="" \
             -Dkernel=ish \
             -Dengine=asbestos \
-            -Dguest_arch=arm64
+            -Dguest_arch=arm64; then
+            # The arm64-guest asbestos engine unconditionally lists host-arch
+            # gadget assembly (gadgets-<host>), which is only pregenerated for
+            # aarch64 hosts. On other hosts (e.g. Intel macs) fall back to
+            # compiling fakefsify directly — it only needs libfakefs sources
+            # and libarchive, none of the emulator.
+            log_info "meson setup failed — building fakefsify directly..."
+            local ARCHFLAGS=""
+            local ARCHLIBS=""
+            if [ -d "/usr/local/opt/libarchive" ]; then
+                ARCHFLAGS="-I/usr/local/opt/libarchive/include"
+                ARCHLIBS="-L/usr/local/opt/libarchive/lib -larchive"
+            elif [ -d "/opt/homebrew/opt/libarchive" ]; then
+                ARCHFLAGS="-I/opt/homebrew/opt/libarchive/include"
+                ARCHLIBS="-L/opt/homebrew/opt/libarchive/lib -larchive"
+            else
+                ARCHLIBS="-larchive"
+            fi
+            mkdir -p "$BUILD_DIR/tools"
+            clang -O2 $ARCHFLAGS -o "$BUILD_DIR/tools/fakefsify" \
+                tools/fakefsify.c tools/fakefs.c util/fchdir.c \
+                fs/fake-db.c fs/fake-migrate.c fs/fake-rebuild.c \
+                "$SCRIPT_DIR/fakefsify_stubs.c" \
+                $ARCHLIBS -lsqlite3 \
+                || { log_error "Direct fakefsify build failed"; }
+            ln -sf fakefsify "$BUILD_DIR/tools/unfakefsify"
+            cd "$SCRIPT_DIR"
+            log_success "fakefsify built successfully"
+            return
+        fi
     fi
 
     # Build only fakefsify
