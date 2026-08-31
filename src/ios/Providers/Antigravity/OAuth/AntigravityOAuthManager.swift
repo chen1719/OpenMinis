@@ -16,11 +16,18 @@ final class AntigravityOAuthManager: NSObject, ObservableObject {
     private let authURL = "https://accounts.google.com/o/oauth2/v2/auth"
     private let tokenURL = "https://oauth2.googleapis.com/token"
     private let userInfoURL = "https://www.googleapis.com/oauth2/v1/userinfo"
-    private let clientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-    // Placeholder. Google OAuth requires a client secret alongside the
-    // client id; supply your own from Google Cloud Console to use this
-    // sign-in. API-key providers are unaffected.
-    private let clientSecret = "GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    // OAuth client credentials are injected at build time from
+    // Configs/ProviderCustomization.xcconfig (ANTIGRAVITY_OAUTH_CLIENT_ID /
+    // ANTIGRAVITY_OAUTH_CLIENT_SECRET) via ProviderCustomizationGenerated, the
+    // same mechanism ANTHROPIC_OAUTH_IDENTIFIER_PROMPT uses. They are kept out
+    // of the repository on purpose: the values look like secrets to scanners,
+    // and swapping in a personal Google Cloud Console client should not
+    // require a code change. Any Google "desktop app" OAuth client works — a
+    // desktop client cannot keep its secret private anyway, so the secret
+    // alone grants no access; the user still authorizes with their own
+    // account. API-key providers are unaffected.
+    private var clientID: String { ProviderCustomizationGenerated.antigravityOAuthClientID }
+    private var clientSecret: String { ProviderCustomizationGenerated.antigravityOAuthClientSecret }
     private let callbackPort: UInt16 = 8086
     private var redirectURI: String { "http://localhost:\(callbackPort)/oauth2callback" }
     private let scopes = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/experimentsandconfigs"
@@ -80,6 +87,13 @@ final class AntigravityOAuthManager: NSObject, ObservableObject {
     }
 
     func login(instanceId: String) async throws {
+        guard !clientID.isEmpty, !clientSecret.isEmpty else {
+            throw LLMError.providerError(
+                message: "Antigravity OAuth is not configured. Set ANTIGRAVITY_OAUTH_CLIENT_ID and "
+                    + "ANTIGRAVITY_OAUTH_CLIENT_SECRET in Configs/ProviderCustomization.xcconfig "
+                    + "(see ProviderCustomization.xcconfig.example) and rebuild."
+            )
+        }
         logger.info("=== Antigravity OAuth login started (instance: \(instanceId)) ===")
         callbackServer?.stop()
         callbackServer = nil

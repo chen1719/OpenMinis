@@ -15,3 +15,12 @@
 // talking to the same endpoint declare the same identifier, e.g.
 // https://github.com/Wei-Shaw/claude-relay-service
 ANTHROPIC_OAUTH_IDENTIFIER_PROMPT =
+
+// Only needed to sign in with Antigravity (Google) OAuth. Use the client ID
+// and client secret of any Google Cloud Console "Desktop app" OAuth client.
+// The credentials are injected at build time and never appear in the repo —
+// secret scanners block pushes that contain them, which is why they are not
+// shipped here. A desktop client's secret is public by nature and grants no
+// access on its own; users still authorize with their own Google account.
+ANTIGRAVITY_OAUTH_CLIENT_ID =
+ANTIGRAVITY_OAUTH_CLIENT_SECRET =
